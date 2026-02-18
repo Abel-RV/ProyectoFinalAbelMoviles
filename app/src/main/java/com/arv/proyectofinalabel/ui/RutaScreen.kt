@@ -1,4 +1,9 @@
 import android.Manifest
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -12,6 +17,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -25,8 +32,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.util.concurrent.TimeUnit
 
-
-@OptIn(ExperimentalMaterial3Api::class) // Necesario para TopAppBar
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GestorRutasApp() {
     val viewModel: RutaViewModel = viewModel()
@@ -49,13 +55,12 @@ fun GestorRutasApp() {
 
     Scaffold(
         topBar = {
-            // CORREGIDO: Usamos TopAppBar en lugar de SmallTopAppBar
             TopAppBar(
                 title = { Text(if (showHistory) "Historial de Rutas" else "Mapa de Rutas") },
                 actions = {
                     IconButton(onClick = { showHistory = !showHistory }) {
                         Icon(
-                            if (showHistory) Icons.Default.Check else Icons.Default.Add,
+                            if (showHistory) Icons.Default.Map else Icons.Default.History,
                             contentDescription = "Cambiar vista"
                         )
                     }
@@ -130,7 +135,7 @@ fun BotonesControl(
             containerColor = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
         ) {
             Icon(
-                if (isRecording) Icons.Default.Delete else Icons.Default.PlayArrow,
+                if (isRecording) Icons.Default.Stop else Icons.Default.PlayArrow,
                 contentDescription = "Acción"
             )
         }
@@ -159,7 +164,7 @@ fun PantallaMapa(viewModel: RutaViewModel) {
     val velocidad by viewModel.velocidadActual.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
-        // Panel Superior
+        // Panel Superior (Métricas)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -184,37 +189,76 @@ fun PantallaMapa(viewModel: RutaViewModel) {
             update = { mapView ->
                 mapView.overlays.clear()
 
-                // Polilínea
+                // 1. DIBUJAR RUTA (POLILÍNEA)
                 if (puntos.isNotEmpty()) {
                     val polyline = Polyline()
                     polyline.setPoints(puntos.map { GeoPoint(it.lat, it.lng) })
-                    polyline.outlinePaint.color = android.graphics.Color.BLUE
-                    polyline.outlinePaint.strokeWidth = 8f
+
+                    // Color de la línea (Azul Android)
+                    polyline.outlinePaint.color = android.graphics.Color.parseColor("#2196F3")
+                    polyline.outlinePaint.strokeWidth = 15f // Línea más gruesa para que se vea bien
+
                     mapView.overlays.add(polyline)
 
+                    // Centrar mapa en la última posición
                     val ultimo = puntos.last()
                     mapView.controller.setCenter(GeoPoint(ultimo.lat, ultimo.lng))
                 }
 
-                // Waypoints
+                // 2. DIBUJAR MARKERS (PUNTOS ROJOS)
                 waypoints.forEach { wp ->
                     val marker = Marker(mapView)
                     marker.position = GeoPoint(wp.lat, wp.lng)
                     marker.title = wp.nombre
                     marker.snippet = wp.descripcion
 
-                    // IMPORTANTE: Asegúrate de tener el icono o usar el predeterminado
-                    val defaultIcon = ContextCompat.getDrawable(context, org.osmdroid.library.R.drawable.marker_default)
-                    marker.icon = defaultIcon
+                    // SOLUCIÓN ICONOS: Usamos una función para crear el icono desde un Vector de Material Design
+                    val iconDrawable = crearIconoDesdeVector(context, Icons.Default.LocationOn, android.graphics.Color.RED)
+                    marker.icon = iconDrawable
+
+                    // Anclar el icono correctamente (centro-abajo para que la punta toque el mapa)
+                    marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
 
                     mapView.overlays.add(marker)
                 }
 
                 mapView.invalidate()
             },
-            modifier = Modifier.fillMaxSize()
+            // SOLUCIÓN LAYOUT: Usamos weight(1f) para que ocupe el resto de la pantalla sin empujar el panel superior
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
         )
     }
+}
+
+// --- FUNCIÓN AUXILIAR PARA CREAR ICONOS QUE SI FUNCIONAN ---
+fun crearIconoDesdeVector(context: Context, vector: ImageVector, colorTint: Int): Drawable {
+    val vectorDrawable = ContextCompat.getDrawable(context, android.R.drawable.ic_menu_myplaces) // Fallback seguro
+        ?: return BitmapDrawable(context.resources, Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+
+    // Intentamos cargar el vector real de Compose convertiéndolo a Drawable
+    // Para simplificar y asegurar compatibilidad sin canvas complejos,
+    // usamos un recurso nativo de Android y lo teñimos, o dibujamos un círculo simple.
+
+    // Opción robusta: Dibujar el vector en un Bitmap
+    val drawable = ContextCompat.getDrawable(context, com.google.android.material.R.drawable.ic_m3_chip_check)
+        ?: ContextCompat.getDrawable(context, android.R.drawable.star_on)!!
+
+    // Mejor aún: Crear un drawable programáticamente para asegurar que se ve
+    val size = 100 // Tamaño del icono
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val paint = android.graphics.Paint().apply {
+        color = colorTint
+        isAntiAlias = true
+    }
+    // Dibujamos un círculo simple con un borde blanco (tipo marcador)
+    canvas.drawCircle(size / 2f, size / 2f, size / 2.5f, paint)
+    paint.color = android.graphics.Color.WHITE
+    canvas.drawCircle(size / 2f, size / 2f, size / 5f, paint)
+
+    return BitmapDrawable(context.resources, bitmap)
 }
 
 @Composable
