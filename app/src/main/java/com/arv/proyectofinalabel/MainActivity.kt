@@ -1,47 +1,26 @@
 package com.arv.proyectofinalabel
 
+import GestorRutasApp
 import android.os.Bundle
+import android.preference.PreferenceManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.arv.proyectofinalabel.ui.theme.ProyectoFinalAbelTheme
+import androidx.compose.material3.MaterialTheme
+import org.osmdroid.config.Configuration
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
+        // 1. Configuración obligatoria de OSMDroid para cargar mapas
+        // Carga la configuración (User Agent) desde las preferencias
+        Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
+
+        // 2. Establecer el contenido de la UI
         setContent {
-            ProyectoFinalAbelTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+            MaterialTheme {
+                GestorRutasApp()
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ProyectoFinalAbelTheme {
-        Greeting("Android")
     }
 }
