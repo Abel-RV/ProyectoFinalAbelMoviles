@@ -234,29 +234,25 @@ fun PantallaMapa(viewModel: RutaViewModel) {
 
 // --- FUNCIÓN AUXILIAR PARA CREAR ICONOS QUE SI FUNCIONAN ---
 fun crearIconoDesdeVector(context: Context, vector: ImageVector, colorTint: Int): Drawable {
-    val vectorDrawable = ContextCompat.getDrawable(context, android.R.drawable.ic_menu_myplaces) // Fallback seguro
-        ?: return BitmapDrawable(context.resources, Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+    // En lugar de buscar recursos complejos que pueden fallar,
+    // dibujamos un marcador redondo (círculo) programáticamente.
+    // Esto funciona en cualquier versión de Android sin librerías extra.
 
-    // Intentamos cargar el vector real de Compose convertiéndolo a Drawable
-    // Para simplificar y asegurar compatibilidad sin canvas complejos,
-    // usamos un recurso nativo de Android y lo teñimos, o dibujamos un círculo simple.
-
-    // Opción robusta: Dibujar el vector en un Bitmap
-    val drawable = ContextCompat.getDrawable(context, com.google.android.material.R.drawable.ic_m3_chip_check)
-        ?: ContextCompat.getDrawable(context, android.R.drawable.star_on)!!
-
-    // Mejor aún: Crear un drawable programáticamente para asegurar que se ve
-    val size = 100 // Tamaño del icono
+    val size = 100 // Tamaño del icono en píxeles
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     val paint = android.graphics.Paint().apply {
         color = colorTint
         isAntiAlias = true
+        style = android.graphics.Paint.Style.FILL
     }
-    // Dibujamos un círculo simple con un borde blanco (tipo marcador)
+
+    // 1. Dibujamos el círculo grande (Color del tinte, ej. Rojo)
     canvas.drawCircle(size / 2f, size / 2f, size / 2.5f, paint)
+
+    // 2. Dibujamos un punto blanco en el centro para que parezca un marcador
     paint.color = android.graphics.Color.WHITE
-    canvas.drawCircle(size / 2f, size / 2f, size / 5f, paint)
+    canvas.drawCircle(size / 2f, size / 2f, size / 6f, paint)
 
     return BitmapDrawable(context.resources, bitmap)
 }

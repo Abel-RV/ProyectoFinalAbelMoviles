@@ -53,6 +53,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
     private var jobCronometro: Job? = null
     private var jobLocation: Job? = null
     private var ultimoPunto: PuntoRuta? = null
+    private var ultimoTiempoMillis: Long = 0L // NUEVA VARIABLE PARA CÁLCULO DE VELOCIDAD
 
     // --- FUNCIONES PÚBLICAS (Llamadas desde la UI) ---
 
@@ -68,6 +69,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
             _distanciaAcumulada.value = 0.0
             _velocidadActual.value = 0.0
             ultimoPunto = null
+            ultimoTiempoMillis = 0L // REINICIAMOS TIEMPO
             _puntosRutaActual.value = emptyList()
             _waypointsRutaActual.value = emptyList()
 
@@ -108,7 +110,6 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Añadir Waypoint (Sin foto)
     fun agregarWaypoint(nombre: String, desc: String) {
         val id = rutaActualId ?: return
         viewModelScope.launch {
@@ -119,7 +120,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
                     lng = location.longitude,
                     nombre = nombre,
                     descripcion = desc,
-                    fotoPath = null // Explícitamente null
+                    fotoPath = null
                 )
                 dao.insertarWaypoint(wp)
                 _waypointsRutaActual.value += wp
@@ -138,14 +139,12 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    @SuppressLint("MissingPermission") // Se gestiona en la Activity
+    @SuppressLint("MissingPermission")
     private fun iniciarTrackingGPS() {
         jobLocation = viewModelScope.launch {
             while (_isRecording.value) {
-                // 1. Obtener ubicación
                 val location = obtenerUbicacionActualSingle()
 
-                // 2. Procesar ubicación
                 if (location != null && rutaActualId != null) {
                     val nuevoPunto = PuntoRuta(
                         rutaId = rutaActualId!!,
@@ -153,25 +152,27 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
                         lng = location.longitude
                     )
 
-                    // Guardar en BD
                     dao.insertarPuntoRuta(nuevoPunto)
-
-                    // Actualizar UI
                     _puntosRutaActual.value += nuevoPunto
 
-                    // Calcular distancia y velocidad
-                    if (ultimoPunto != null) {
+                    val tiempoActualMillis = System.currentTimeMillis()
+
+                    if (ultimoPunto != null && ultimoTiempoMillis > 0) {
                         val dist = calcularDistanciaHaversine(ultimoPunto!!, nuevoPunto)
                         _distanciaAcumulada.value += dist
 
-                        // Velocidad instantánea aprox (tramo de 10s)
-                        val velocidadKmh = (dist / 10.0) * 3.6
-                        _velocidadActual.value = velocidadKmh
+                        // CÁLCULO DE VELOCIDAD CORREGIDO
+                        val segundosTranscurridos = (tiempoActualMillis - ultimoTiempoMillis) / 1000.0
+
+                        if (segundosTranscurridos > 0) {
+                            val velocidadKmh = (dist / segundosTranscurridos) * 3.6
+                            _velocidadActual.value = velocidadKmh
+                        }
                     }
                     ultimoPunto = nuevoPunto
+                    ultimoTiempoMillis = tiempoActualMillis
                 }
 
-                // 3. Esperar 10 segundos para el siguiente punto
                 delay(10_000)
             }
         }
@@ -186,9 +187,8 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Fórmula matemática para distancia entre coordenadas
     private fun calcularDistanciaHaversine(p1: PuntoRuta, p2: PuntoRuta): Double {
-        val R = 6371000.0 // Radio Tierra (metros)
+        val R = 6371000.0
         val dLat = Math.toRadians(p2.lat - p1.lat)
         val dLng = Math.toRadians(p2.lng - p1.lng)
         val a = sin(dLat / 2).pow(2) +
