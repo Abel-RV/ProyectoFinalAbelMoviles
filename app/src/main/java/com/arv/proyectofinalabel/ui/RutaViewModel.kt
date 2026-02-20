@@ -152,25 +152,43 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
                         lng = location.longitude
                     )
 
-                    dao.insertarPuntoRuta(nuevoPunto)
-                    _puntosRutaActual.value += nuevoPunto
+                    var dist = 0.0
+                    var meHeMovido = true // Variable para saber si el movimiento es real
 
-                    val tiempoActualMillis = System.currentTimeMillis()
+                    // Si hay un punto anterior, calculamos la distancia antes de hacer nada
+                    if (ultimoPunto != null) {
+                        dist = calcularDistanciaHaversine(ultimoPunto!!, nuevoPunto)
 
-                    if (ultimoPunto != null && ultimoTiempoMillis > 0) {
-                        val dist = calcularDistanciaHaversine(ultimoPunto!!, nuevoPunto)
-                        _distanciaAcumulada.value += dist
-
-                        // CÁLCULO DE VELOCIDAD CORREGIDO
-                        val segundosTranscurridos = (tiempoActualMillis - ultimoTiempoMillis) / 1000.0
-
-                        if (segundosTranscurridos > 0) {
-                            val velocidadKmh = (dist / segundosTranscurridos) * 3.6
-                            _velocidadActual.value = velocidadKmh
+                        // FILTRO ANTI-RUIDO: Si la distancia es menor a 3 metros, lo ignoramos
+                        if (dist < 3.0) {
+                            meHeMovido = false
                         }
                     }
-                    ultimoPunto = nuevoPunto
-                    ultimoTiempoMillis = tiempoActualMillis
+
+                    // Solo guardamos y sumamos si de verdad nos hemos movido
+                    if (meHeMovido) {
+                        dao.insertarPuntoRuta(nuevoPunto)
+                        _puntosRutaActual.value += nuevoPunto
+
+                        val tiempoActualMillis = System.currentTimeMillis()
+
+                        if (ultimoPunto != null && ultimoTiempoMillis > 0) {
+                            _distanciaAcumulada.value += dist
+
+                            val segundosTranscurridos = (tiempoActualMillis - ultimoTiempoMillis) / 1000.0
+
+                            if (segundosTranscurridos > 0) {
+                                val velocidadKmh = (dist / segundosTranscurridos) * 3.6
+                                _velocidadActual.value = velocidadKmh
+                            }
+                        }
+                        ultimoPunto = nuevoPunto
+                        ultimoTiempoMillis = tiempoActualMillis
+
+                    } else {
+                        // Si meHeMovido es false (estamos quietos), forzamos la velocidad a 0
+                        _velocidadActual.value = 0.0
+                    }
                 }
 
                 delay(10_000)
