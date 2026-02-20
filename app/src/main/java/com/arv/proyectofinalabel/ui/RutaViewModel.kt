@@ -53,7 +53,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
     private var jobCronometro: Job? = null
     private var jobLocation: Job? = null
     private var ultimoPunto: PuntoRuta? = null
-    private var ultimoTiempoMillis: Long = 0L // NUEVA VARIABLE PARA CÁLCULO DE VELOCIDAD
+    private var ultimoTiempoMillis: Long = 0L // Para el cálculo exacto de la velocidad
 
     // --- FUNCIONES PÚBLICAS (Llamadas desde la UI) ---
 
@@ -69,7 +69,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
             _distanciaAcumulada.value = 0.0
             _velocidadActual.value = 0.0
             ultimoPunto = null
-            ultimoTiempoMillis = 0L // REINICIAMOS TIEMPO
+            ultimoTiempoMillis = 0L // Reiniciamos el tiempo
             _puntosRutaActual.value = emptyList()
             _waypointsRutaActual.value = emptyList()
 
@@ -146,47 +146,56 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
                 val location = obtenerUbicacionActualSingle()
 
                 if (location != null && rutaActualId != null) {
-                    val nuevoPunto = PuntoRuta(
-                        rutaId = rutaActualId!!,
-                        lat = location.latitude,
-                        lng = location.longitude
-                    )
 
-                    var dist = 0.0
-                    var meHeMovido = true // Variable para saber si el movimiento es real
+                    // 1. FILTRO DE PRECISIÓN: Solo aceptamos puntos con un margen de error menor a 15m
+                    val precisionAceptable = location.hasAccuracy() && location.accuracy <= 15f
 
-                    // Si hay un punto anterior, calculamos la distancia antes de hacer nada
-                    if (ultimoPunto != null) {
-                        dist = calcularDistanciaHaversine(ultimoPunto!!, nuevoPunto)
+                    if (precisionAceptable) {
+                        val nuevoPunto = PuntoRuta(
+                            rutaId = rutaActualId!!,
+                            lat = location.latitude,
+                            lng = location.longitude
+                        )
 
-                        // FILTRO ANTI-RUIDO: Si la distancia es menor a 3 metros, lo ignoramos
-                        if (dist < 3.0) {
-                            meHeMovido = false
-                        }
-                    }
+                        var dist = 0.0
+                        var meHeMovido = true
 
-                    // Solo guardamos y sumamos si de verdad nos hemos movido
-                    if (meHeMovido) {
-                        dao.insertarPuntoRuta(nuevoPunto)
-                        _puntosRutaActual.value += nuevoPunto
+                        if (ultimoPunto != null) {
+                            dist = calcularDistanciaHaversine(ultimoPunto!!, nuevoPunto)
 
-                        val tiempoActualMillis = System.currentTimeMillis()
-
-                        if (ultimoPunto != null && ultimoTiempoMillis > 0) {
-                            _distanciaAcumulada.value += dist
-
-                            val segundosTranscurridos = (tiempoActualMillis - ultimoTiempoMillis) / 1000.0
-
-                            if (segundosTranscurridos > 0) {
-                                val velocidadKmh = (dist / segundosTranscurridos) * 3.6
-                                _velocidadActual.value = velocidadKmh
+                            // 2. FILTRO DE DISTANCIA: Si la distancia es menor a 15m, lo consideramos ruido de GPS
+                            if (dist < 15.0) {
+                                meHeMovido = false
                             }
                         }
-                        ultimoPunto = nuevoPunto
-                        ultimoTiempoMillis = tiempoActualMillis
 
+                        if (meHeMovido) {
+                            // Solo guardamos y calculamos si el movimiento es real y preciso
+                            dao.insertarPuntoRuta(nuevoPunto)
+                            _puntosRutaActual.value += nuevoPunto
+
+                            val tiempoActualMillis = System.currentTimeMillis()
+
+                            if (ultimoPunto != null && ultimoTiempoMillis > 0) {
+                                _distanciaAcumulada.value += dist
+
+                                // Calculamos los segundos exactos transcurridos para una velocidad real
+                                val segundosTranscurridos = (tiempoActualMillis - ultimoTiempoMillis) / 1000.0
+
+                                if (segundosTranscurridos > 0) {
+                                    val velocidadKmh = (dist / segundosTranscurridos) * 3.6
+                                    _velocidadActual.value = velocidadKmh
+                                }
+                            }
+                            ultimoPunto = nuevoPunto
+                            ultimoTiempoMillis = tiempoActualMillis
+
+                        } else {
+                            // Estamos quietos (movimiento menor a 15m)
+                            _velocidadActual.value = 0.0
+                        }
                     } else {
-                        // Si meHeMovido es false (estamos quietos), forzamos la velocidad a 0
+                        // La precisión es mala (ej. estamos en interiores), ignoramos el salto y forzamos velocidad a 0
                         _velocidadActual.value = 0.0
                     }
                 }
@@ -206,7 +215,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun calcularDistanciaHaversine(p1: PuntoRuta, p2: PuntoRuta): Double {
-        val R = 6371000.0
+        val R = 6371000.0 // Radio de la Tierra en metros
         val dLat = Math.toRadians(p2.lat - p1.lat)
         val dLng = Math.toRadians(p2.lng - p1.lng)
         val a = sin(dLat / 2).pow(2) +
