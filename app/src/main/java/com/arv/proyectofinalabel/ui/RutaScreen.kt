@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -182,41 +183,41 @@ fun PantallaMapa(viewModel: RutaViewModel) {
             factory = { ctx ->
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
-                    setMultiTouchControls(true)
+
+                    // --- 1. BLOQUEAR EL MOVIMIENTO MANUAL ---
+                    setMultiTouchControls(false) // Desactiva el zoom con dos dedos
+                    setOnTouchListener { _, _ -> true } // Bloquea que el usuario arrastre el mapa
+
                     controller.setZoom(18.0)
                 }
             },
             update = { mapView ->
                 mapView.overlays.clear()
 
-                // 1. DIBUJAR RUTA (POLILÍNEA)
+                // DIBUJAR RUTA (POLILÍNEA)
                 if (puntos.isNotEmpty()) {
                     val polyline = Polyline()
                     polyline.setPoints(puntos.map { GeoPoint(it.lat, it.lng) })
 
-                    // Color de la línea (Azul Android)
                     polyline.outlinePaint.color = android.graphics.Color.parseColor("#2196F3")
-                    polyline.outlinePaint.strokeWidth = 15f // Línea más gruesa para que se vea bien
+                    polyline.outlinePaint.strokeWidth = 15f
 
                     mapView.overlays.add(polyline)
 
-                    // Centrar mapa en la última posición
+                    // Centrar mapa en la última posición automáticamente
                     val ultimo = puntos.last()
                     mapView.controller.setCenter(GeoPoint(ultimo.lat, ultimo.lng))
                 }
 
-                // 2. DIBUJAR MARKERS (PUNTOS ROJOS)
+                // DIBUJAR MARKERS (PUNTOS ROJOS)
                 waypoints.forEach { wp ->
                     val marker = Marker(mapView)
                     marker.position = GeoPoint(wp.lat, wp.lng)
                     marker.title = wp.nombre
                     marker.snippet = wp.descripcion
 
-                    // SOLUCIÓN ICONOS: Usamos una función para crear el icono desde un Vector de Material Design
                     val iconDrawable = crearIconoDesdeVector(context, Icons.Default.LocationOn, android.graphics.Color.RED)
                     marker.icon = iconDrawable
-
-                    // Anclar el icono correctamente (centro-abajo para que la punta toque el mapa)
                     marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
 
                     mapView.overlays.add(marker)
@@ -224,10 +225,13 @@ fun PantallaMapa(viewModel: RutaViewModel) {
 
                 mapView.invalidate()
             },
-            // SOLUCIÓN LAYOUT: Usamos weight(1f) para que ocupe el resto de la pantalla sin empujar el panel superior
+
+            // --- 2. CONFIGURAR TAMAÑO Y ESTILO FIJO ---
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .padding(16.dp) // Le da márgenes para que no toque los bordes del móvil
+                .height(400.dp) // Define una altura fija. (Puedes subir o bajar este número)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) // Redondea las esquinas
         )
     }
 }
