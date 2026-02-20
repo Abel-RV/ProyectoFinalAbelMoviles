@@ -184,9 +184,9 @@ fun PantallaMapa(viewModel: RutaViewModel) {
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
 
-                    // --- 1. BLOQUEAR EL MOVIMIENTO MANUAL ---
-                    setMultiTouchControls(false) // Desactiva el zoom con dos dedos
-                    setOnTouchListener { _, _ -> true } // Bloquea que el usuario arrastre el mapa
+                    // --- 1. ACTIVAR EL MOVIMIENTO MANUAL ---
+                    setMultiTouchControls(true) // Permite hacer zoom con dos dedos
+                    // (Hemos quitado el setOnTouchListener que bloqueaba el arrastre)
 
                     controller.setZoom(18.0)
                 }
@@ -204,7 +204,7 @@ fun PantallaMapa(viewModel: RutaViewModel) {
 
                     mapView.overlays.add(polyline)
 
-                    // Centrar mapa en la última posición automáticamente
+                    // Centrar mapa en la última posición
                     val ultimo = puntos.last()
                     mapView.controller.setCenter(GeoPoint(ultimo.lat, ultimo.lng))
                 }
@@ -226,12 +226,12 @@ fun PantallaMapa(viewModel: RutaViewModel) {
                 mapView.invalidate()
             },
 
-            // --- 2. CONFIGURAR TAMAÑO Y ESTILO FIJO ---
+            // --- 2. ZONA FIJA EN LA INTERFAZ ---
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp) // Le da márgenes para que no toque los bordes del móvil
-                .height(400.dp) // Define una altura fija. (Puedes subir o bajar este número)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) // Redondea las esquinas
+                .padding(16.dp) // Márgenes laterales
+                .height(400.dp) // Altura fija del mapa (puedes cambiar este 400 por lo que prefieras)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) // Esquinas redondeadas
         )
     }
 }
