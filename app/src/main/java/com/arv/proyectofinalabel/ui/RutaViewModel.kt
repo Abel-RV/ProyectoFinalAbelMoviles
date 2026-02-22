@@ -25,20 +25,18 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = db.rutaDao()
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(application)
 
-    // --- ESTADOS DE LA UI ---
     private val _isRecording = MutableStateFlow(false)
     val isRecording = _isRecording.asStateFlow()
 
-    private val _tiempoTranscurrido = MutableStateFlow(0L) // Milisegundos
+    private val _tiempoTranscurrido = MutableStateFlow(0L)
     val tiempoTranscurrido = _tiempoTranscurrido.asStateFlow()
 
-    private val _distanciaAcumulada = MutableStateFlow(0.0) // Metros
+    private val _distanciaAcumulada = MutableStateFlow(0.0)
     val distanciaAcumulada = _distanciaAcumulada.asStateFlow()
 
     private val _velocidadActual = MutableStateFlow(0.0) // km/h
     val velocidadActual = _velocidadActual.asStateFlow()
 
-    // Datos para dibujar en el mapa en tiempo real
     private val _puntosRutaActual = MutableStateFlow<List<PuntoRuta>>(emptyList())
     val puntosRutaActual = _puntosRutaActual.asStateFlow()
 
@@ -53,13 +51,10 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
     private var jobCronometro: Job? = null
     private var jobLocation: Job? = null
     private var ultimoPunto: PuntoRuta? = null
-    private var ultimoTiempoMillis: Long = 0L // Para el cálculo exacto de la velocidad
-
-    // --- FUNCIONES PÚBLICAS (Llamadas desde la UI) ---
+    private var ultimoTiempoMillis: Long = 0L
 
     fun iniciarRuta() {
         viewModelScope.launch {
-            // Creamos la ruta en BD (vacía inicialmente)
             val nuevaRuta = Ruta(nombre = "Grabando ruta...")
             rutaActualId = dao.insertarRuta(nuevaRuta)
 
@@ -69,7 +64,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
             _distanciaAcumulada.value = 0.0
             _velocidadActual.value = 0.0
             ultimoPunto = null
-            ultimoTiempoMillis = 0L // Reiniciamos el tiempo
+            ultimoTiempoMillis = 0L
             _puntosRutaActual.value = emptyList()
             _waypointsRutaActual.value = emptyList()
 
@@ -92,10 +87,9 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
             val duracionFinal = _tiempoTranscurrido.value
             val distanciaFinal = _distanciaAcumulada.value
             val velocidadMedia = if (duracionFinal > 0)
-                (distanciaFinal / 1000.0) / (duracionFinal / 3600000.0) // km/h
+                (distanciaFinal / 1000.0) / (duracionFinal / 3600000.0)
             else 0.0
 
-            // Actualizamos la ruta en la BD con los datos finales
             val rutaActualizada = Ruta(
                 id = id,
                 nombre = nombreFinal.ifBlank { "Ruta ${System.currentTimeMillis()}" },
@@ -128,8 +122,6 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- PROCESOS INTERNOS ---
-
     private fun iniciarCronometro() {
         jobCronometro = viewModelScope.launch {
             while (_isRecording.value) {
@@ -147,7 +139,6 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (location != null && rutaActualId != null) {
 
-                    // 1. FILTRO DE PRECISIÓN: Solo aceptamos puntos con un margen de error menor a 15m
                     val precisionAceptable = location.hasAccuracy() && location.accuracy <= 15f
 
                     if (precisionAceptable) {
@@ -163,14 +154,12 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
                         if (ultimoPunto != null) {
                             dist = calcularDistanciaHaversine(ultimoPunto!!, nuevoPunto)
 
-                            // 2. FILTRO DE DISTANCIA: Si la distancia es menor a 15m, lo consideramos ruido de GPS
                             if (dist < 15.0) {
                                 meHeMovido = false
                             }
                         }
 
                         if (meHeMovido) {
-                            // Solo guardamos y calculamos si el movimiento es real y preciso
                             dao.insertarPuntoRuta(nuevoPunto)
                             _puntosRutaActual.value += nuevoPunto
 
@@ -178,8 +167,6 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
 
                             if (ultimoPunto != null && ultimoTiempoMillis > 0) {
                                 _distanciaAcumulada.value += dist
-
-                                // Calculamos los segundos exactos transcurridos para una velocidad real
                                 val segundosTranscurridos = (tiempoActualMillis - ultimoTiempoMillis) / 1000.0
 
                                 if (segundosTranscurridos > 0) {
@@ -191,11 +178,9 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
                             ultimoTiempoMillis = tiempoActualMillis
 
                         } else {
-                            // Estamos quietos (movimiento menor a 15m)
                             _velocidadActual.value = 0.0
                         }
                     } else {
-                        // La precisión es mala (ej. estamos en interiores), ignoramos el salto y forzamos velocidad a 0
                         _velocidadActual.value = 0.0
                     }
                 }
@@ -215,7 +200,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun calcularDistanciaHaversine(p1: PuntoRuta, p2: PuntoRuta): Double {
-        val R = 6371000.0 // Radio de la Tierra en metros
+        val R = 6371000.0
         val dLat = Math.toRadians(p2.lat - p1.lat)
         val dLng = Math.toRadians(p2.lng - p1.lng)
         val a = sin(dLat / 2).pow(2) +

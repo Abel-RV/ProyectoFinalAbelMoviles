@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.symbol.processing)
+    //id("com.android.application")
+    id("com.google.gms.google-services")
 
 }
 
@@ -65,6 +67,8 @@ dependencies {
 
     // 2. PARA EL AWAIT (Si te sigue fallando)
     implementation(libs.kotlinx.coroutines.play.services)
+    implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
+    implementation("com.google.firebase:firebase-analytics")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
