@@ -39,19 +39,33 @@ fun GestorRutasApp() {
     val viewModel: RutaViewModel = viewModel()
     val isRecording by viewModel.isRecording.collectAsState()
     var showHistory by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    // --- GESTIÓN DE PERMISOS ---
+    // --- GESTIÓN DE PERMISOS ACTUALIZADA ---
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { }
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            viewModel.obtenerUbicacionRapida()
+        }
+    }
 
     LaunchedEffect(Unit) {
-        permissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+        val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            viewModel.obtenerUbicacionRapida() // Si ya hay permisos, centramos directo
+        } else {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
             )
-        )
+        }
     }
 
     Scaffold(
@@ -159,6 +173,9 @@ fun PantallaMapa(viewModel: RutaViewModel) {
     val puntos by viewModel.puntosRutaActual.collectAsState()
     val waypoints by viewModel.waypointsRutaActual.collectAsState()
 
+    // NUEVO: Observamos la ubicación inicial
+    val ubicacionInicial by viewModel.ubicacionInicial.collectAsState()
+
     // Métricas
     val distancia by viewModel.distanciaAcumulada.collectAsState()
     val tiempo by viewModel.tiempoTranscurrido.collectAsState()
@@ -186,7 +203,6 @@ fun PantallaMapa(viewModel: RutaViewModel) {
 
                     // --- 1. ACTIVAR EL MOVIMIENTO MANUAL ---
                     setMultiTouchControls(true) // Permite hacer zoom con dos dedos
-                    // (Hemos quitado el setOnTouchListener que bloqueaba el arrastre)
 
                     controller.setZoom(18.0)
                 }
@@ -207,6 +223,10 @@ fun PantallaMapa(viewModel: RutaViewModel) {
                     // Centrar mapa en la última posición
                     val ultimo = puntos.last()
                     mapView.controller.setCenter(GeoPoint(ultimo.lat, ultimo.lng))
+
+                } else if (ubicacionInicial != null) {
+                    // NUEVO: Centrar mapa en la ubicación actual si aún no hay puntos grabados
+                    mapView.controller.setCenter(GeoPoint(ubicacionInicial!!.latitude, ubicacionInicial!!.longitude))
                 }
 
                 // DIBUJAR MARKERS (PUNTOS ROJOS)
@@ -230,7 +250,7 @@ fun PantallaMapa(viewModel: RutaViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp) // Márgenes laterales
-                .height(400.dp) // Altura fija del mapa (puedes cambiar este 400 por lo que prefieras)
+                .height(400.dp) // Altura fija del mapa
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) // Esquinas redondeadas
         )
     }
@@ -238,10 +258,6 @@ fun PantallaMapa(viewModel: RutaViewModel) {
 
 // --- FUNCIÓN AUXILIAR PARA CREAR ICONOS QUE SI FUNCIONAN ---
 fun crearIconoDesdeVector(context: Context, vector: ImageVector, colorTint: Int): Drawable {
-    // En lugar de buscar recursos complejos que pueden fallar,
-    // dibujamos un marcador redondo (círculo) programáticamente.
-    // Esto funciona en cualquier versión de Android sin librerías extra.
-
     val size = 100 // Tamaño del icono en píxeles
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)

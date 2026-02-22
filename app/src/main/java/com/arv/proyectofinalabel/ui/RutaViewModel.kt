@@ -53,6 +53,19 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
     private var ultimoPunto: PuntoRuta? = null
     private var ultimoTiempoMillis: Long = 0L
 
+    private val _ubicacionInicial = MutableStateFlow<Location?>(null)
+    val ubicacionInicial = _ubicacionInicial.asStateFlow()
+
+    // NUEVO: Función para pedir la ubicación una sola vez al abrir la app
+    fun obtenerUbicacionRapida() {
+        viewModelScope.launch {
+            val location = obtenerUbicacionActualSingle()
+            if (location != null) {
+                _ubicacionInicial.value = location
+            }
+        }
+    }
+
     fun iniciarRuta() {
         viewModelScope.launch {
             val nuevaRuta = Ruta(nombre = "Grabando ruta...")
