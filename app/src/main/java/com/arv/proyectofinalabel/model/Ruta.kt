@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 data class Ruta(
     @PrimaryKey val id: Long = System.currentTimeMillis(),
     val nombre: String,
-    val distancia: Double = 0.0, // metros
-    val duracion: Long = 0L,     // milisegundos
-    val velocidadMedia: Double = 0.0 // km/h
+    val distancia: Double = 0.0,
+    val duracion: Long = 0L,
+    val velocidadMedia: Double = 0.0
 )

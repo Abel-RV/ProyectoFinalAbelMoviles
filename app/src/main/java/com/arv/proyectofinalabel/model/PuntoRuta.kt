@@ -12,10 +12,10 @@ import androidx.room.PrimaryKey
             entity = Ruta::class,
             parentColumns = ["id"],
             childColumns = ["rutaId"],
-            onDelete = ForeignKey.CASCADE // Si borras la ruta, se borran sus puntos
+            onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("rutaId")] // Mejora el rendimiento de las consultas
+    indices = [Index("rutaId")]
 )
 data class PuntoRuta(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

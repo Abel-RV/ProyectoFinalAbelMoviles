@@ -37,7 +37,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
     private val _distanciaAcumulada = MutableStateFlow(0.0)
     val distanciaAcumulada = _distanciaAcumulada.asStateFlow()
 
-    private val _velocidadActual = MutableStateFlow(0.0) // km/h
+    private val _velocidadActual = MutableStateFlow(0.0)
     val velocidadActual = _velocidadActual.asStateFlow()
 
     private val _puntosRutaActual = MutableStateFlow<List<PuntoRuta>>(emptyList())
@@ -64,7 +64,6 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
         if (trackingGlobalIniciado) return
         trackingGlobalIniciado = true
 
-        // 1. CONFIGURACIÓN SÚPER RÁPIDA: Actualiza cada 0.5s / 1s sin importar la distancia
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
             .setMinUpdateIntervalMillis(500)
             .setMinUpdateDistanceMeters(0f)
@@ -73,7 +72,7 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
-                    _ubicacionInicial.value = location // Tu punto azul se mueve instantáneamente
+                    _ubicacionInicial.value = location
 
                     if (_isRecording.value) {
                         procesarNuevaUbicacion(location)
@@ -124,8 +123,6 @@ class RutaViewModel(application: Application) : AndroidViewModel(application) {
 
             if (ultimoPunto != null) {
                 dist = calcularDistanciaHaversine(ultimoPunto!!, nuevoPunto)
-                // Aunque el mapa va a tope de frames, en BDD solo guardamos un punto cada 2.5 metros
-                // para que la base de datos no se sature.
                 if (dist < 2.5) {
                     meHeMovido = false
                 }
